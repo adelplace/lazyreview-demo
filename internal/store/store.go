@@ -45,14 +45,19 @@ func (s *Store) Get(id int) (Todo, error) {
 	return t, nil
 }
 
-// List returns every todo, oldest first.
-func (s *Store) List() []Todo {
-	out := make([]Todo, 0, len(s.todos))
+// List returns up to limit todos starting at offset, oldest first, and the
+// total number of todos.
+func (s *Store) List(offset, limit int) ([]Todo, int) {
+	all := make([]Todo, 0, len(s.todos))
 	for _, t := range s.todos {
-		out = append(out, t)
+		all = append(all, t)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out
+	sort.Slice(all, func(i, j int) bool { return all[i].ID < all[j].ID })
+	if offset >= len(all) {
+		return []Todo{}, len(all)
+	}
+	end := min(offset+limit, len(all))
+	return all[offset:end], len(all)
 }
 
 // Toggle flips the done state of a todo.

@@ -4,6 +4,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -27,7 +28,19 @@ func NewRouter(s *store.Store) http.Handler {
 }
 
 func (h *handler) list(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, h.store.List())
+	p, err := parsePage(r.URL.Query())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	todos, total := h.store.List(p.offset(), p.Size)
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
+	writeJSON(w, http.StatusOK, page[store.Todo]{
+		Items: todos,
+		Page:  p.Page,
+		Size:  p.Size,
+		Total: total,
+	})
 }
 
 func (h *handler) create(w http.ResponseWriter, r *http.Request) {
@@ -103,5 +116,7 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("encode response: %v", err)
+	}
 }
