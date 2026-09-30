@@ -4,6 +4,7 @@ package store
 import (
 	"errors"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -18,8 +19,9 @@ type Todo struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// Store is an in-memory todo list.
+// Store is an in-memory todo list, safe for concurrent use.
 type Store struct {
+	mu     sync.RWMutex
 	todos  map[int]Todo
 	nextID int
 }
@@ -30,6 +32,8 @@ func New() *Store {
 
 // Add creates a todo and returns it.
 func (s *Store) Add(title string) Todo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	t := Todo{ID: s.nextID, Title: title, CreatedAt: time.Now()}
 	s.todos[t.ID] = t
 	s.nextID++
@@ -38,6 +42,8 @@ func (s *Store) Add(title string) Todo {
 
 // Get returns the todo with the given id.
 func (s *Store) Get(id int) (Todo, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	t, ok := s.todos[id]
 	if !ok {
 		return Todo{}, ErrNotFound
@@ -47,6 +53,8 @@ func (s *Store) Get(id int) (Todo, error) {
 
 // List returns every todo, oldest first.
 func (s *Store) List() []Todo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	out := make([]Todo, 0, len(s.todos))
 	for _, t := range s.todos {
 		out = append(out, t)
@@ -57,6 +65,8 @@ func (s *Store) List() []Todo {
 
 // Toggle flips the done state of a todo.
 func (s *Store) Toggle(id int) (Todo, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	t, ok := s.todos[id]
 	if !ok {
 		return Todo{}, ErrNotFound
@@ -68,6 +78,8 @@ func (s *Store) Toggle(id int) (Todo, error) {
 
 // Delete removes a todo.
 func (s *Store) Delete(id int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, ok := s.todos[id]; !ok {
 		return ErrNotFound
 	}
